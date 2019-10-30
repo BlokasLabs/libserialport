@@ -1762,7 +1762,7 @@ static enum sp_return get_config(struct sp_port *port, struct port_data *data,
 #ifdef USE_TERMIOX
 	int ret = get_flow(port->fd, data);
 
-	if (ret == SP_ERR_FAIL && errno == EINVAL)
+	if (ret == SP_ERR_FAIL && (errno == EINVAL || errno == ENOTTY))
 		data->termiox_supported = 0;
 	else if (ret < 0)
 		RETURN_CODEVAL(ret);
