@@ -32,6 +32,7 @@
 /* Define to 1 if the system has the type `struct serial_struct'. */
 #define HAVE_STRUCT_SERIAL_STRUCT 1
 
+#if 0
 /* Define to 1 if the system has the type `struct termios2'. */
 #define HAVE_STRUCT_TERMIOS2 1
 
@@ -49,6 +50,7 @@
 
 /* Define to 1 if the system has the type `struct termiox'. */
 #define HAVE_STRUCT_TERMIOX 1
+#endif
 
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #define HAVE_SYS_STAT_H 1
@@ -87,7 +89,13 @@
 #define PACKAGE_VERSION "0.1.1"
 
 /* Macro preceding public API functions */
+#ifndef SP_API
+#ifndef _WIN32
 #define SP_API __attribute__((visibility("default")))
+#else
+#define SP_API __declspec(dllexport)
+#endif
+#endif
 
 /* . */
 #define SP_LIB_VERSION_AGE 1
@@ -114,7 +122,11 @@
 #define SP_PACKAGE_VERSION_STRING "0.1.1"
 
 /* Macro preceding private functions */
+#ifndef _WIN32
 #define SP_PRIV __attribute__((visibility("hidden")))
+#else
+#define SP_PRIV
+#endif
 
 /* Define to 1 if you have the ANSI C header files. */
 #define STDC_HEADERS 1

@@ -31,8 +31,11 @@ static void enumerate_hub(struct sp_port *port, const char *hub_name,
 static char *wc_to_utf8(PWCHAR wc_buffer, ULONG size)
 {
 	ULONG wc_length = size / sizeof(WCHAR);
-	WCHAR wc_str[wc_length + 1];
+	WCHAR wc_str[4096];
 	char *utf8_str;
+
+	if (wc_length + 1 > sizeof(wc_str))
+		wc_length = sizeof(wc_str)-1;
 
 	/* Zero-terminate the wide char string. */
 	memcpy(wc_str, wc_buffer, size);
@@ -233,7 +236,7 @@ static void enumerate_hub_ports(struct sp_port *port, HANDLE hub_device,
 					char device_id[MAX_DEVICE_ID_LEN];
 					if (CM_Get_Parent(&dev_inst, dev_inst, 0) == CR_SUCCESS) {
 						if (CM_Get_Device_IDA(dev_inst, device_id, sizeof(device_id), 0) == CR_SUCCESS)
-							port->usb_serial = strdup(strrchr(device_id, '\\')+1);
+							port->usb_serial = _strdup(strrchr(device_id, '\\')+1);
 					}
 				}
 			}
@@ -404,7 +407,7 @@ SP_PRIV enum sp_return get_port_details(struct sp_port *port)
 		          CM_DRP_FRIENDLYNAME, 0, description, &size, 0)) != CR_SUCCESS
 		       && CM_Get_Parent(&dev_inst, dev_inst, 0) == CR_SUCCESS) { }
 		if (cr == CR_SUCCESS)
-			port->description = strdup(description);
+			port->description = _strdup(description);
 
 		/* Get more informations for USB connected ports. */
 		if (port->transport == SP_TRANSPORT_USB) {
@@ -451,7 +454,7 @@ SP_PRIV enum sp_return get_port_details(struct sp_port *port)
 				}
 			} while (CM_Get_Parent(&dev_inst, dev_inst, 0) == CR_SUCCESS);
 
-			port->usb_path = strdup(usb_path);
+			port->usb_path = _strdup(usb_path);
 
 			/* Wake up the USB device to be able to read string descriptor. */
 			char *escaped_port_name;
