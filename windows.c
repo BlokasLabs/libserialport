@@ -348,6 +348,32 @@ static void get_usb_details(struct sp_port *port, DEVINST dev_inst_match)
 	return;
 }
 
+SP_PRIV void try_get_pid_and_vid_from_hid(DEVINST dev_inst, struct sp_port *port)
+{
+	char hid[MAX_DEVICE_ID_LEN+1];
+	hid[MAX_DEVICE_ID_LEN] = '\0';
+	DWORD size = sizeof(hid);
+	CONFIGRET cr = CM_Get_DevNode_Registry_PropertyA(dev_inst, CM_DRP_HARDWAREID, 0, hid, &size, 0);
+
+	if (cr != CR_SUCCESS)
+	{
+		DEBUG_FMT("Reading Hardware ID failed with %d", cr);
+		return;
+	}
+
+	if (strlen(hid) >= 21 && strncmp("USB\\VID_", hid, 8) == 0 && strncmp(hid+12, "&PID_", 5) == 0)
+	{
+		hid[12] = hid[21] = '\0';
+		const char *vid_str = hid+8;
+		const char *pid_str = hid+17;
+
+		port->usb_vid = strtol(vid_str, NULL, 16);
+		port->usb_pid = strtol(pid_str, NULL, 16);
+
+		DEBUG_FMT("Read out %04x:%04x", port->usb_vid, port->usb_pid);
+	}
+}
+
 SP_PRIV enum sp_return get_port_details(struct sp_port *port)
 {
 	/*
@@ -399,6 +425,8 @@ SP_PRIV enum sp_return get_port_details(struct sp_port *port)
 			if (!strcmp(class, "USB"))
 				port->transport = SP_TRANSPORT_USB;
 		}
+
+		DEVINST original_dev_inst = dev_inst;
 
 		/* Get port description (friendly name). */
 		dev_inst = device_info_data.DevInst;
@@ -470,6 +498,12 @@ SP_PRIV enum sp_return get_port_details(struct sp_port *port)
 
 			/* Retrieve USB device details from the device descriptor. */
 			get_usb_details(port, device_info_data.DevInst);
+
+			if (port->usb_pid < 0 || port->usb_vid < 0)
+			{
+				DEBUG_FMT("VID and PID for %s not located by enumeration, trying to get it from Hardware ID", port->name);
+				try_get_pid_and_vid_from_hid(original_dev_inst, port);
+			}
 		}
 		break;
 	}
