@@ -348,17 +348,17 @@ static void get_usb_details(struct sp_port *port, DEVINST dev_inst_match)
 	return;
 }
 
-SP_PRIV void try_get_pid_and_vid_from_hid(DEVINST dev_inst, struct sp_port *port)
+SP_PRIV enum sp_return try_get_pid_vid_and_serial_from_reg(DEVINST dev_inst, struct sp_port *port)
 {
 	char hid[MAX_DEVICE_ID_LEN+1];
 	hid[MAX_DEVICE_ID_LEN] = '\0';
-	DWORD size = sizeof(hid);
+	ULONG size = sizeof(hid);
 	CONFIGRET cr = CM_Get_DevNode_Registry_PropertyA(dev_inst, CM_DRP_HARDWAREID, 0, hid, &size, 0);
 
 	if (cr != CR_SUCCESS)
 	{
 		DEBUG_FMT("Reading Hardware ID failed with %d", cr);
-		return;
+		return SP_ERR_SUPP;
 	}
 
 	if (strlen(hid) >= 21 && strncmp("USB\\VID_", hid, 8) == 0 && strncmp(hid+12, "&PID_", 5) == 0)
@@ -372,6 +372,34 @@ SP_PRIV void try_get_pid_and_vid_from_hid(DEVINST dev_inst, struct sp_port *port
 
 		DEBUG_FMT("Read out %04x:%04x", port->usb_vid, port->usb_pid);
 	}
+
+	hid[MAX_DEVICE_ID_LEN] = '\0';
+	cr = CM_Get_Device_IDA(dev_inst, hid, size, 0);
+
+	if (cr == CR_SUCCESS)
+	{
+		DEBUG_FMT("Success accessing DeviceId: '%s', using it as serial.", hid);
+		port->usb_serial = _strdup(strrchr(hid, '\\')+1);
+	}
+	else
+	{
+		DEBUG("Failed getting serial from DeviceId, trying to go with ContainerId");
+		hid[MAX_DEVICE_ID_LEN] = '\0';
+		size = sizeof(hid);
+		cr = CM_Get_DevNode_Registry_PropertyA(dev_inst, CM_DRP_BASE_CONTAINERID, 0, hid, &size, 0);
+		if (cr == CR_SUCCESS)
+		{
+			DEBUG_FMT("Success accessing FriendlyName: '%s', using it as serial.", hid);
+			port->usb_serial = _strdup(hid);
+		}
+		else
+		{
+			DEBUG("Failed getting ContainerId, returning unsupported error...");
+			return SP_ERR_SUPP;
+		}
+	}
+
+	return SP_OK;
 }
 
 SP_PRIV enum sp_return get_port_details(struct sp_port *port)
@@ -499,10 +527,15 @@ SP_PRIV enum sp_return get_port_details(struct sp_port *port)
 			/* Retrieve USB device details from the device descriptor. */
 			get_usb_details(port, device_info_data.DevInst);
 
-			if (port->usb_pid < 0 || port->usb_vid < 0)
+			if (port->usb_pid < 0 || port->usb_vid < 0 || port->usb_serial == NULL || *port->usb_serial == '\0')
 			{
-				DEBUG_FMT("VID and PID for %s not located by enumeration, trying to get it from Hardware ID", port->name);
-				try_get_pid_and_vid_from_hid(original_dev_inst, port);
+				DEBUG_FMT("VID and PID or serial for %s not located by enumeration, trying to get it from Registry", port->name);
+				enum sp_return result = try_get_pid_vid_and_serial_from_reg(original_dev_inst, port);
+				if (result != SP_OK)
+				{
+					SetupDiDestroyDeviceInfoList(device_info);
+					RETURN_ERROR(result, "Getting information from registry failed");
+				}
 			}
 		}
 		break;
