@@ -2007,7 +2007,7 @@ static enum sp_return set_config(struct sp_port *port, struct port_data *data,
 	}
 
 	if (!SetCommState(port->hdl, &data->dcb))
-		RETURN_FAIL("SetCommState() failed");
+		DEBUG_FMT("SetCommState() failed, ignoring failure...");
 
 #else /* !_WIN32 */
 
